@@ -26,10 +26,21 @@
 # way to load a raw Android-style boot.img. Without this, autoboot
 # finds nothing on mmc and falls through to a network boot attempt.
 #
+# --active is required, not cosmetic: it sets the GPT "legacy_boot"
+# attribute bit (wic runs `parted set <n> legacy_boot on` for GPT when
+# this flag is given). U-Boot's bootdev_find_in_blk()
+# (boot/bootdev-uclass.c) calls part_get_bootable() on the whole disk
+# first; if it finds *no* partition with that bit set, it falls back to
+# only ever scanning partition 1 and rejects every other partition with
+# -EINVAL ("No partition found") *before* even checking for a
+# filesystem - which is exactly what happened to partitions 2 (boot)
+# and 3 (rootfs) without this flag, confirmed via
+# `bootflow scan -lae` on the actual board.
+#
 # 0~32K: GPT
 bootloader --ptable gpt --append="console=ttyFIQ0,1500000"
 part --source rawcopy --sourceparams="file=idblock.img" --align 32 --no-table
 part --source rawcopy --sourceparams="file=uboot.img" --part-name uboot --offset 8M
 part --source rawcopy --sourceparams="file=trust.img" --part-name trust --align 4
-part /boot --source bootimg-partition --sourceparams="loader=u-boot" --label boot --fstype=vfat --align 4 --fixed-size 64M --use-uuid
+part /boot --source bootimg-partition --sourceparams="loader=u-boot" --label boot --fstype=vfat --align 4 --fixed-size 64M --active --use-uuid
 part / --source rootfs --fstype ${RK_ROOTFS_TYPE} --part-name rootfs --uuid ${RK_ROOTDEV_UUID} --mkfs-extraopts "${RK_ROOTFS_EXTRAOPTS}" --align 8192
