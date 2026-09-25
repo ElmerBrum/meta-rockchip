@@ -1,0 +1,43 @@
+From c8f8df2410300a83ce113bc450414235dd075c34 Mon Sep 17 00:00:00 2001
+From: Yocto Port <elmermetrasbrum@hotmail.com>
+Date: Fri, 25 Sep 2026 11:56:58 -0300
+Subject: [PATCH] arm64: dts: rockchip: radxa-zero-3e: enable NPU
+
+The rknpu and rknpu_mmu nodes default to status = "disabled" in the
+shared rk356x.dtsi (both nodes, checked directly:
+arch/arm64/boot/dts/rockchip/rk356x.dtsi). The backported board dtsi
+(0004-*.patch) only set rknpu-supply, without enabling either node -
+NPU stayed off. rknpu_mmu (its IOMMU, referenced via
+'iommus = <&rknpu_mmu>;' in the rknpu node) needs enabling too, or the
+NPU driver's IOMMU dependency won't resolve.
+
+CONFIG_ROCKCHIP_RKNPU=y is already set in rockchip_linux_defconfig
+(this layer's shared kernel config) - no defconfig change needed, this
+was purely a devicetree gap.
+
+Upstream-Status: Pending
+
+Signed-off-by: Yocto Port <elmermetrasbrum@hotmail.com>
+---
+ arch/arm64/boot/dts/rockchip/rk3566-radxa-zero3.dtsi | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3566-radxa-zero3.dtsi b/arch/arm64/boot/dts/rockchip/rk3566-radxa-zero3.dtsi
+index 4198b86..338048b 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3566-radxa-zero3.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3566-radxa-zero3.dtsi
+@@ -821,3 +821,11 @@
+ 		/* GPIO4_D4-D7 */
+ 		"", "", "", "";
+ };
++
++&rknpu {
++	status = "okay";
++};
++
++&rknpu_mmu {
++	status = "okay";
++};
+-- 
+2.43.0
+
