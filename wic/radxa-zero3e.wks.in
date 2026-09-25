@@ -1,0 +1,25 @@
+# Partition layout for the Radxa ZERO 3E.
+#
+# Based on wic/generic-gptdisk.wks.in (this layer's default), with one
+# change: the U-Boot proper partition moves from offset 2M to 8M.
+#
+# u-boot-radxa-zero3e (mainline-based U-Boot, see recipes-bsp/u-boot/
+# u-boot-radxa-zero3e_2024.07.bb) uses a different SPL than the legacy
+# u-boot-rockchip.bb this default layout was designed for: its SPL loads
+# u-boot.itb from a *fixed raw sector* (not a GPT lookup by partition
+# name), computed from CONFIG_SPL_PAD_TO=0x7f8000 in the board defconfig
+# - i.e. sector 64 (where loader1/idbloader starts) + 0x7f8000/512
+# sectors = sector 16384 = offset 8MiB. Leaving this at the default 2M
+# puts u-boot.itb somewhere SPL never looks, so it fails with
+# "mmc_load_image_raw_sector: mmc block read error" and never reaches
+# U-Boot proper. This is exactly the offset the official upstream
+# meta-rockchip layer's own wic/rockchip.wks uses for the same reason
+# (its "loader2" partition sits at sector 16384 too).
+#
+# 0~32K: GPT
+bootloader --ptable gpt
+part --source rawcopy --sourceparams="file=idblock.img" --align 32 --no-table
+part --source rawcopy --sourceparams="file=uboot.img" --part-name uboot --offset 8M
+part --source rawcopy --sourceparams="file=trust.img" --part-name trust --align 4
+part --source rawcopy --sourceparams="file=boot.img" --part-name boot --align 4
+part / --source rootfs --fstype ${RK_ROOTFS_TYPE} --part-name rootfs --uuid ${RK_ROOTDEV_UUID} --mkfs-extraopts "${RK_ROOTFS_EXTRAOPTS}" --align 8192
