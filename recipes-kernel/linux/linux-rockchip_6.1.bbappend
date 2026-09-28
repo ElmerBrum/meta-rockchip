@@ -26,6 +26,16 @@
 # rockchip_linux_defconfig in this source sets to "y" - wrong for this
 # board (see mali-jm.cfg's own comment) and also fatal to the build
 # under Yocto's out-of-tree kbuild.
+#
+# mali-jm.cfg lives in linux-rockchip_6.1/ (alongside the 0001-0005
+# patches) rather than the shared files/ dir - that's PATCHPATH's own
+# naming convention (linux-rockchip.inc: "${BPN}_${LINUX_VERSION}",
+# underscore), used only for *.patch auto-discovery. Plain file://
+# SRC_URI entries go through bitbake's normal FILESPATH search instead,
+# which uses "${BPN}-${PV}" (hyphen) - a different directory entirely -
+# so it needs spelling out explicitly here.
+FILESEXTRAPATHS:prepend := "${THISDIR}/linux-rockchip_6.1:"
+
 SRC_URI:radxa-zero-3e = " \
 	git://github.com/radxa/kernel.git;protocol=https;nobranch=1;branch=linux-6.1-stan-rkr5.1; \
 	file://cgroups.cfg \
