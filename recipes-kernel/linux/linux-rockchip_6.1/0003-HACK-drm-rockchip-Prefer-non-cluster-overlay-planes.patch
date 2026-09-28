@@ -1,27 +1,100 @@
-From 0d0dd356ee457ca24f56719b4ccf9626a7b84b78 Mon Sep 17 00:00:00 2001
-From: Jeffy Chen <jeffy.chen@rock-chips.com>
-Date: Fri, 1 Apr 2022 22:17:07 +0800
-Subject: [PATCH 3/3] HACK: drm: rockchip: Prefer non-cluster overlay planes
+From df601c9c8a389696e7ebbc8783521028f5c517bf Mon Sep 17 00:00:00 2001
+From: Yocto Port <elmermetrasbrum@hotmail.com>
+Date: Mon, 28 Sep 2026 10:55:00 -0300
+Subject: [PATCH] HACK: drm: rockchip: Prefer non-cluster overlay planes
 
 Change-Id: I65d40b50c96921b644de4601188c0518c99c9d72
 Signed-off-by: Jeffy Chen <jeffy.chen@rock-chips.com>
+
+Re-generated with wide (-U20) diff context instead of the original
+default (-U3): the narrow original context around the new
+'use_cluster' declaration (find_primary_plane/bootloader_initialized/
+private = drm_dev->dev_private) is not unique in this file - a subset
+of it also matches inside the unrelated vop2_iommu_fault_handler().
+Fuzzy patch application (which this layer permits by default via
+ERROR_QA:remove = "patch-status patch-fuzz") can silently apply the
+declaration hunk to that wrong function instead of vop2_create_crtc(),
+compiling to 'unused variable' + 'undeclared identifier' errors -
+confirmed reproducing exactly this on a real build attempt after the
+6.1.115 kernel bump (radxa/kernel linux-6.1-stan-rkr5.1), where the
+file has drifted enough from this patch's original (2022) line numbers
+for the narrow context to stop landing in the right function. Verified
+this same failure mode is latent against the *original* 6.1.57 source
+too when applied without git's stricter matching (plain `patch`, which
+Yocto's do_patch/auto-patch.bbclass uses, allows the same fuzzy
+mis-match) - not something introduced by the version bump, just not
+previously observed. Functionally identical patch, just anchored
+unambiguously now.
+
+Signed-off-by: Yocto Port <elmermetrasbrum@hotmail.com>
 ---
  drivers/gpu/drm/rockchip/rockchip_drm_vop2.c | 10 ++++++++++
  1 file changed, 10 insertions(+)
 
 diff --git a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
-index 5955b8ebf149..3065829a20a1 100644
+index 80a598e..edc7397 100644
 --- a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
 +++ b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
-@@ -11291,6 +11291,7 @@ static int vop2_create_crtc(struct vop2 *vop2)
+@@ -12639,40 +12639,41 @@ static int vop2_create_crtc(struct vop2 *vop2, uint8_t enabled_vp_mask)
+ 	struct drm_device *drm_dev = vop2->drm_dev;
+ 	struct device *dev = vop2->dev;
+ 	struct drm_plane *primary;
+ 	struct drm_plane *cursor = NULL;
+ 	struct drm_crtc *crtc;
+ 	struct device_node *port;
+ 	struct vop2_win *win = NULL;
+ 	struct vop2_video_port *vp;
+ 	const struct vop2_video_port_data *vp_data;
+ 	uint32_t possible_crtcs;
+ 	uint64_t soc_id;
+ 	uint32_t registered_num_crtcs = 0;
+ 	uint32_t plane_mask = 0;
+ 	char clk_name[16];
+ 	int i = 0, j = 0, k = 0;
+ 	int ret = 0;
+ 	bool be_used_for_primary_plane = false;
  	bool find_primary_plane = false;
  	bool bootloader_initialized = false;
  	struct rockchip_drm_private *private = drm_dev->dev_private;
 +	bool use_cluster = false;
  
- 	/* all planes can attach to any crtc */
- 	possible_crtcs = (1 << vop2_data->nr_vps) - 1;
-@@ -11539,9 +11540,13 @@ static int vop2_create_crtc(struct vop2 *vop2)
+ 	/*
+ 	 * We set plane_mask from dts or bootloader
+ 	 * if all the plane_mask are zero, that means
+ 	 * the bootloader don't initialized the vop, or
+ 	 * something is wrong, the kernel will try to
+ 	 * initial all the vp.
+ 	 */
+ 	for (i = 0; i < vop2_data->nr_vps; i++) {
+ 		vp = &vop2->vps[i];
+ 		if (vp->plane_mask) {
+ 			bootloader_initialized = true;
+ 			break;
+ 		}
+ 	}
+ 
+ 	/*
+ 	 * Create primary plane for eache crtc first, since we need
+ 	 * to pass them to drm_crtc_init_with_planes, which sets the
+ 	 * "possible_crtcs" to the newly initialized crtc.
+@@ -12906,77 +12907,86 @@ static int vop2_create_crtc(struct vop2 *vop2, uint8_t enabled_vp_mask)
+ 	for (j = 0; j < vop2->registered_num_wins; j++) {
+ 		win = &vop2->win[j];
+ 		be_used_for_primary_plane = false;
+ 
+ 		for (k = 0; k < vop2_data->nr_vps; k++) {
+ 			if (vop2->vps[k].primary_plane_phy_id == win->phys_id) {
+ 				be_used_for_primary_plane = true;
+ 				break;
+ 			}
+ 		}
+ 
+ 		if (win->type == DRM_PLANE_TYPE_PRIMARY &&
+ 		    !be_used_for_primary_plane)
+ 			win->type = DRM_PLANE_TYPE_OVERLAY;
+ 	}
+ 
+ 	/*
  	 * create overlay planes of the leftover overlay win
  	 * Create drm_planes for overlay windows with possible_crtcs restricted
  	 */
@@ -35,7 +108,34 @@ index 5955b8ebf149..3065829a20a1 100644
  		if (win->type != DRM_PLANE_TYPE_OVERLAY)
  			continue;
  		/*
-@@ -11570,6 +11575,11 @@ static int vop2_create_crtc(struct vop2 *vop2)
+ 		 * Only dual display on rk3568(which need two crtcs) need mirror win
+ 		 */
+ 		if (registered_num_crtcs < 2 && vop2_is_mirror_win(win))
+ 			continue;
+ 		/*
+ 		 * zpos of overlay plane is higher than primary
+ 		 * and lower than cursor
+ 		 */
+ 		win->zpos = registered_num_crtcs + j;
+ 
+ 		possible_crtcs = vop2_win_get_possible_crtcs(vop2, win, enabled_vp_mask);
+ 		if (vop2->disable_win_move) {
+ 			if (is_vop3(vop2)) {
+ 				/*
+ 				 * Set possible_crtcs of overlay plane to the lowest bit
+ 				 * of exact possibel_crtcs calculated from enabled_vp_mask
+ 				 * for vop3, whose wins may not support every video port.
+ 				 */
+ 				possible_crtcs = BIT(ffs(possible_crtcs) - 1);
+ 			} else {
+ 				crtc = vop2_find_crtc_by_plane_mask(vop2, win->phys_id);
+ 				if (crtc)
+ 					possible_crtcs = drm_crtc_mask(crtc);
+ 			}
+ 		}
+ 
+ 		ret = vop2_plane_init(vop2, win, possible_crtcs);
+ 		if (ret)
  			DRM_WARN("failed to init overlay plane %s\n", win->name);
  	}
  
@@ -47,6 +147,23 @@ index 5955b8ebf149..3065829a20a1 100644
  	if (is_vop3(vop2))
  		vop3_init_esmart_scale_engine(vop2);
  
+ 	return registered_num_crtcs;
+ }
+ 
+ static void vop2_destroy_crtc(struct drm_crtc *crtc)
+ {
+ 	struct vop2_video_port *vp = to_vop2_video_port(crtc);
+ 
+ 	drm_self_refresh_helper_cleanup(crtc);
+ 	if (vp->hdr_lut_gem_obj)
+ 		rockchip_gem_free_object(&vp->hdr_lut_gem_obj->base);
+ 
+ 	of_node_put(crtc->port);
+ 
+ 	/*
+ 	 * Destroy CRTC after vop2_plane_destroy() since vop2_disable_plane()
+ 	 * references the CRTC.
+ 	 */
 -- 
-2.20.1
+2.43.0
 
