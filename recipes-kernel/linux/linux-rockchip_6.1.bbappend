@@ -17,15 +17,18 @@
 # the end of rk3566-radxa-zero3.dtsi, and that file's content is
 # unchanged between the two forks at these exact revisions (verified).
 #
-# NOT build-tested yet. 0001-0003 (the layer's existing generic hack
-# patches, unrelated to this board) were checked by hand against this
-# source's actual file content before switching - do_mounts.c is
-# byte-identical; the two drm rockchip cursor-hack patches target
-# lines that shifted position (2400->2411 in rockchip_drm_vop.c) but
-# matched context text exactly, which `git am`/patch context-matching
-# should tolerate - not a certainty until it's actually applied.
+# Confirmed on a real build attempt: do_patch (0001-0003, 0005) and
+# do_kernel_metadata/defconfig resolution all succeeded - do_compile
+# got quite far into the tree before failing (see mali-jm.cfg below),
+# which is itself good evidence the patches applied cleanly.
+#
+# mali-jm.cfg disables CONFIG_MALI_CSF_SUPPORT, which
+# rockchip_linux_defconfig in this source sets to "y" - wrong for this
+# board (see mali-jm.cfg's own comment) and also fatal to the build
+# under Yocto's out-of-tree kbuild.
 SRC_URI:radxa-zero-3e = " \
 	git://github.com/radxa/kernel.git;protocol=https;nobranch=1;branch=linux-6.1-stan-rkr5.1; \
 	file://cgroups.cfg \
+	file://mali-jm.cfg \
 "
 SRCREV:radxa-zero-3e = "f87fca6cefcb6229c7f81399dd351cf658940bfa"
