@@ -21,6 +21,16 @@ SRC_URI:radxa-zero-3e = "git://github.com/nyanmisaka/ffmpeg-rockchip.git;protoco
 SRCREV:radxa-zero-3e = "d547c18f18c744bc5e2180ce028fe1a6bd23ddad"
 S:radxa-zero-3e = "${WORKDIR}/git"
 
+# Only COPYING.LGPLv2.1 actually differs from the base recipe's
+# checksum (byte-identical to upstream FFmpeg's own release/6.1 branch
+# - the base recipe's checksum was just computed against the 6.1.4 tag
+# specifically, and this branch has moved past that to 6.1.6). The
+# other three license files are unchanged.
+LIC_FILES_CHKSUM:radxa-zero-3e = "file://COPYING.GPLv2;md5=b234ee4d69f5fce4486a80fdaf4a4263 \
+                    file://COPYING.GPLv3;md5=d32239bcb673463ab874e80d47fae504 \
+                    file://COPYING.LGPLv2.1;md5=eed22b3456132611e3d4aa7a7ec64dac \
+                    file://COPYING.LGPLv3;md5=e6a600fd5e1d9cbde2d983680233ad02"
+
 DEPENDS:append:radxa-zero-3e = " rockchip-mpp rockchip-librga"
 
 # Required by ffmpeg-rockchip's own build docs (github.com/nyanmisaka/
