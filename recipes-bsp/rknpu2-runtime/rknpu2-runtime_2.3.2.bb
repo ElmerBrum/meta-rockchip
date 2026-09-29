@@ -44,6 +44,15 @@ do_install () {
 # "librknnrt.so" for both build and runtime) - headers+lib both go in
 # the main package rather than splitting off a -dev, same reasoning as
 # rockchip-libmali.bb in this layer.
+#
+# The default -dev package's FILES (${includedir}, ${libdir}/lib*.so)
+# would otherwise claim both before FILES:${PN} below ever gets a
+# chance - packages are populated in PACKAGES order and -dev comes
+# before the main package - which is exactly what happened: everything
+# landed in rknpu2-runtime-dev, and a private application library ended up RDEPENDS on a -dev
+# package (QA error "rdepends on rknpu2-runtime-dev [dev-deps]").
+FILES:${PN}-dev = ""
+
 INSANE_SKIP:${PN} = "already-stripped ldflags dev-so"
 INHIBIT_PACKAGE_DEBUG_SPLIT = "1"
 INHIBIT_PACKAGE_STRIP = "1"
