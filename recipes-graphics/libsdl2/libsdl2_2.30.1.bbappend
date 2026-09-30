@@ -27,3 +27,16 @@ PACKAGECONFIG:append:radxa-zero-3e = " kmsdrm"
 # SDL_VIDEODRIVER=kmsdrm to steer around a driver that shouldn't be
 # compiled in on this board at all.
 PACKAGECONFIG:remove:radxa-zero-3e = " wayland"
+
+# SDL2 auto-starts a background HIDAPI enumeration thread regardless
+# of SDL_Init() flags (our app only requests SDL_INIT_VIDEO |
+# SDL_INIT_TIMER | SDL_INIT_EVENTS - no joystick/haptic at all) -
+# whatever USB HID device it finds (this board has a UVC webcam
+# attached, which exposes a HID interface) gets probed as a
+# game controller. Our app segfaulted on real hardware in
+# SDL_SYS_ToFFEffect (haptic/force-feedback code) with a NULL dest,
+# confirmed via gdb against a core dump - a second, different crash
+# than the wayland one above, found on the same board after that fix
+# landed. The app has no use for any of this, so disable it outright
+# rather than chase whatever HID device trips it up next.
+EXTRA_OECMAKE:append:radxa-zero-3e = " -DSDL_JOYSTICK=OFF -DSDL_HAPTIC=OFF -DSDL_HIDAPI=OFF"
