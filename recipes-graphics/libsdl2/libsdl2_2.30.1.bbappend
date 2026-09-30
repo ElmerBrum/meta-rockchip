@@ -14,3 +14,16 @@
 # rockchip-libmali (MALI_GPU=bifrost-g52 for this SoC family, see
 # rk356x.inc) already PROVIDES virtual/libgbm.
 PACKAGECONFIG:append:radxa-zero-3e = " kmsdrm"
+
+# wayland is compiled in too by default (DISTRO_FEATURES has it), even
+# though this board never has a compositor - and it's actively
+# harmful here, not just unused: SDL2 still probes the wayland backend
+# internally regardless of SDL_VIDEODRIVER, and our app segfaulted on
+# real hardware inside Wayland_VideoQuit -> Wayland_VideoCleanup with
+# a NULL SDL_VideoData* (confirmed via gdb against a core dump pulled
+# from the board over SSH - the wayland bootstrap's own create/init
+# never got the chance to populate its private data before something
+# tore it down). Remove it outright rather than relying on
+# SDL_VIDEODRIVER=kmsdrm to steer around a driver that shouldn't be
+# compiled in on this board at all.
+PACKAGECONFIG:remove:radxa-zero-3e = " wayland"
