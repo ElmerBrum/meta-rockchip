@@ -116,21 +116,17 @@ $ sudo upgrade_tool uf <IMAGE PATH>/update.img # For rockchip firmware image
 
 The following undergo regular basic testing with their respective MACHINE types.
 
-* px3se evb board
-
-* rk3308 evb board
-
-* rk3326 evb board
-
-* px30 evb board
-
-* rk3328 evb board
-
-* rk3288 evb board
-
-* rk3399 sapphire excavator board
-
-* rk3399pro evb board
+| MACHINE | Board | Notes |
+| --- | --- | --- |
+| rockchip-px3se-evb | px3se evb board | |
+| rockchip-rk3308-evb | rk3308 evb board | |
+| rockchip-rk3326-evb | rk3326 evb board | |
+| rockchip-px30-evb | px30 evb board | |
+| rockchip-rk3328-evb | rk3328 evb board | |
+| rockchip-rk3288-evb | rk3288 evb board | |
+| rockchip-rk3399-sapphire-excavator | rk3399 sapphire excavator board | |
+| rockchip-rk3399pro-evb | rk3399pro evb board | |
+| radxa-zero-3e | [Radxa ZERO 3E](https://radxa.com/products/zeros/zero3e/) (RK3566) | Boots to a login shell hands-off (mainline-style U-Boot 2024.07, not the layer's default legacy SDK fork). Kernel 6.1.115 from [radxa/kernel](https://github.com/radxa/kernel) (`linux-6.1-stan-rkr5.1`), swapped in for this machine only. NPU, RGA, MPP (video codec engines) and HDMI all confirmed working on real hardware via `dmesg`. SSH (dropbear, password auth). ffmpeg built against [nyanmisaka/ffmpeg-rockchip](https://github.com/nyanmisaka/ffmpeg-rockchip) for RKMPP/RKRGA hw-accelerated decode, confirmed on hardware. Standalone SDK (`populate_sdk`) for cross-compiling applications against ffmpeg/RGA/MPP/NPU. |
 
 ### V. Supporting new Machine
 
@@ -183,3 +179,4 @@ SRCREV_rkbin:pn-u-boot-rockchip = "${AUTOREV}"
 ## Maintainers
 
 * Jeffy Chen `<jeffy.chen@rock-chips.com>`
+* Elmer `<elmermetrasbrum@hotmail.com>` (Radxa ZERO 3E support)
