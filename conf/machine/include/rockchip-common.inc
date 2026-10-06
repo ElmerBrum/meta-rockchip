@@ -46,3 +46,10 @@ RDEPENDS:${KERNEL_PACKAGE_NAME}-base = ""
 # Bypass patch checks
 ERROR_QA:remove = "patch-status patch-fuzz"
 WARN_QA:remove = "patch-fuzz"
+
+# rockchip-image.bbclass (wic/ext4 image type, RK_ROOTDEV_UUID, the
+# vendor firmware symlink post-process step) is required by every
+# machine in this layer, not just a per-project opt-in - inherit it
+# here instead of making every local.conf add "INHERIT:append =
+# rockchip-image" by hand (see classes/rockchip-image.bbclass).
+INHERIT += "rockchip-image"
