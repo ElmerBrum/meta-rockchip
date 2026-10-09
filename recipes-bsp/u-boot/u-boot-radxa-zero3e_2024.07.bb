@@ -65,7 +65,17 @@ SRCREV_rkbin = "c41b714cacd249e3ef69b2bbe774da5095eefd72"
 SRC_URI = " \
 	git://github.com/Kwiboo/u-boot-rockchip.git;protocol=https;branch=rk3xxx-2024.07 \
 	git://github.com/JeffyCN/mirrors.git;protocol=https;branch=rkbin;name=rkbin;destsuffix=rkbin \
+	file://rauc-ab.cfg \
 "
+# rauc-ab.cfg: hand-rolled RAUC symmetric A/B support (persistent env in
+# the new "data" ext4 partition + a CONFIG_BOOTCOMMAND override reading
+# BOOT_ORDER/BOOT_<bootname>_LEFT, matching RAUC's own "uboot" bootloader
+# backend) - see that file's own extensive comments for the full
+# reasoning and the open items (rauc_devnum, the env partition-index
+# coupling with wic/radxa-zero3e.wks.in) that still need confirming on
+# real hardware. Merged on top of the defconfig via u-boot-configure.inc's
+# do_configure (find_cfgs()/merge_config.sh against any *.cfg in SRC_URI
+# - confirmed by reading that file, not assumed).
 SRCREV_FORMAT = "default_rkbin"
 
 UBOOT_MACHINE = "radxa-zero-3-rk3566_defconfig"

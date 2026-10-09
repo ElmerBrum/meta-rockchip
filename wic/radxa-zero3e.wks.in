@@ -1,30 +1,79 @@
 # Partition layout for the Radxa ZERO 3E.
 #
-# Based on wic/generic-gptdisk.wks.in (this layer's default), with one
-# change: the U-Boot proper partition moves from offset 2M to 8M.
+# Based on wic/generic-gptdisk.wks.in (this layer's default), with two
+# kinds of change on top of the original single-rootfs layout:
 #
-# u-boot-radxa-zero3e (mainline-based U-Boot, see recipes-bsp/u-boot/
-# u-boot-radxa-zero3e_2024.07.bb) uses a different SPL than the legacy
-# u-boot-rockchip.bb this default layout was designed for: its SPL loads
-# u-boot.itb from a *fixed raw sector* (not a GPT lookup by partition
-# name), computed from CONFIG_SPL_PAD_TO=0x7f8000 in the board defconfig
-# - i.e. sector 64 (where loader1/idbloader starts) + 0x7f8000/512
-# sectors = sector 16384 = offset 8MiB. Leaving this at the default 2M
-# puts u-boot.itb somewhere SPL never looks, so it fails with
-# "mmc_load_image_raw_sector: mmc block read error" and never reaches
-# U-Boot proper. This is exactly the offset the official upstream
-# meta-rockchip layer's own wic/rockchip.wks uses for the same reason
-# (its "loader2" partition sits at sector 16384 too).
+# - The U-Boot proper partition moves from offset 2M to 8M: U-Boot's
+#   SPL (see u-boot-radxa-zero3e_2024.07.bb) loads u-boot.itb from a
+#   *fixed raw sector* (not a GPT lookup by partition name), computed
+#   from CONFIG_SPL_PAD_TO=0x7f8000 in the board defconfig - i.e.
+#   sector 64 (where loader1/idbloader starts) + 0x7f8000/512 sectors =
+#   sector 16384 = offset 8MiB. This is exactly the offset the official
+#   upstream meta-rockchip layer's own wic/rockchip.wks uses for the
+#   same reason.
+#
+# - Symmetric A/B (RAUC): "boot"/"rootfs" became boot_a/boot_b (vfat,
+#   kernel+dtb+shared extlinux.conf) and rootfs_a/rootfs_b (ext4), plus
+#   a new persistent "data" partition outside the A/B scheme entirely.
+#   See meta-toletus/recipes-core (rauc-data-sync, rauc-mark-good) and
+#   meta-rockchip's own u-boot-radxa-zero3e_2024.07.bb (rauc-ab.cfg) for
+#   the rest of this scheme - this file only owns the partition table.
+#
+#   Both boot_a/boot_b use the SAME --configfile= (radxa-zero3e-extlinux.conf,
+#   or meta-toletus's own fork via its WKS_FILE override) - confirmed by
+#   reading scripts/lib/wic/plugins/source/bootimg-partition.py that
+#   "configfile = cr.ks.bootloader.configfile" comes from the wks file's
+#   single global "bootloader --configfile=" directive, so there is no
+#   way to give the two boot_* partitions different extlinux.conf
+#   *content* in one wks file. That's why extlinux.conf's root= is
+#   "${rauc_root}", a U-Boot env var the rauc-ab.cfg boot command sets
+#   to the winning slot's PARTUUID= before calling sysboot, rather than
+#   a literal PARTUUID baked into two different files.
+#
+#   Sizes: rootfs_a/rootfs_b are fixed (not auto-sized like the old
+#   single rootfs partition was) - both slots must be identical capacity.
+#   3072M each, sized around the current ~350M build plus the ~2500M
+#   growth headroom expected for this board's sysroot, confirmed against
+#   its real 16GB SD card (see meta-toletus's planning notes - total
+#   partitioned space here is ~10.1GB, leaving >4.5GB unallocated
+#   deliberately). "data" is 4096M: current models/media is ~100M, but
+#   it also needs room to stage a full downloaded RAUC bundle
+#   (boot+rootfs image, worst case ~3GB) before install.
+#
+#   "data" also needs --mkfs-extraopts disabling metadata_csum/64bit:
+#   confirmed on real hardware (2026-10-09) that this U-Boot's EXT4
+#   write support (CONFIG_ENV_IS_IN_EXT4, meta-rockchip's
+#   u-boot-radxa-zero3e rauc-ab.cfg - U-Boot needs read+write access to
+#   this exact partition for its own persistent env) refuses to write
+#   at all if metadata_csum is present ("Saving Environment to EXT4...
+#   Unsupported feature metadata_csum found, not writing"), a known
+#   U-Boot ext4-write limitation. e2fsprogs enables it by default on a
+#   plain mkfs.ext4 with no options, which is exactly what this
+#   partition got before this line existed (it has no --mkfs-extraopts
+#   at all, unlike rootfs_a/rootfs_b's RK_ROOTFS_EXTRAOPTS). 64bit
+#   disabled defensively alongside it - not itself confirmed as a
+#   problem here, but a very commonly co-occurring U-Boot/ext4-write
+#   incompatibility in the same class, cheap to rule out up front rather
+#   than discover on a second round-trip. rootfs_a/rootfs_b don't need
+#   this: U-Boot never writes to or reads files from those directly (it
+#   only needs raw root= mounting, which Linux's own ext4 driver - no
+#   such limitation - handles once it takes over).
+#
+# RK_ROOTDEV_UUID_A/RK_ROOTDEV_UUID_B (classes/rockchip-image.bbclass)
+# MUST stay in sync with the literal rauc_uuid_a/rauc_uuid_b values
+# compiled into u-boot-radxa-zero3e's rauc-ab.cfg - see that file's own
+# comment.
 #
 # The "boot" partition is a real vfat filesystem with a
 # /extlinux/extlinux.conf (see wic/radxa-zero3e-extlinux.conf, wired up
 # below via "bootloader --configfile="), not a raw copy of the
 # Rockchip-style boot.img - mainline U-Boot's autoboot
-# (distro_bootcmd/bootstd, what u-boot-radxa-zero3e uses) only knows how
-# to find a kernel via /extlinux/extlinux.conf on an actual filesystem
-# partition; it has no way to load a raw Android-style boot.img. Without
-# this, autoboot finds nothing on mmc and falls through to a network
-# boot attempt.
+# (distro_bootcmd/bootstd, what u-boot-radxa-zero3e uses by default)
+# only knows how to find a kernel via /extlinux/extlinux.conf on an
+# actual filesystem partition; it has no way to load a raw Android-style
+# boot.img. RAUC's own CONFIG_BOOTCOMMAND override (rauc-ab.cfg) calls
+# "sysboot" directly against whichever boot_a/boot_b partition wins,
+# rather than relying on distro_bootcmd's own device/partition scanning.
 #
 # A *custom* extlinux.conf is used instead of letting the
 # "bootimg-partition" source plugin auto-generate one (its default
@@ -42,21 +91,69 @@
 # message, no console output at all - confirmed on real hardware).
 # An explicit "fdt" line sidesteps fdtfile/fdtdir matching entirely.
 #
-# --active is required, not cosmetic: it sets the GPT "legacy_boot"
-# attribute bit (wic runs `parted set <n> legacy_boot on` for GPT when
-# this flag is given). U-Boot's bootdev_find_in_blk()
+# --active is required on both boot_a/boot_b, not cosmetic: it sets the
+# GPT "legacy_boot" attribute bit (wic runs `parted set <n> legacy_boot
+# on` for GPT when this flag is given). U-Boot's bootdev_find_in_blk()
 # (boot/bootdev-uclass.c) calls part_get_bootable() on the whole disk
 # first; if it finds *no* partition with that bit set, it falls back to
 # only ever scanning partition 1 and rejects every other partition with
 # -EINVAL ("No partition found") *before* even checking for a
 # filesystem - which is exactly what happened to partitions 2 (boot)
-# and 3 (rootfs) without this flag, confirmed via
-# `bootflow scan -lae` on the actual board.
+# and 3 (rootfs) without this flag on the original single-slot layout,
+# confirmed via `bootflow scan -lae` on the actual board. Our own
+# CONFIG_BOOTCOMMAND override bypasses that scan entirely, so this is
+# belt-and-suspenders now rather than a hard functional requirement -
+# kept on both partitions anyway since there's no downside.
+#
+# boot_a/boot_b/data have NO mountpoint argument at all (unlike the old
+# single "boot" partition, which used "/boot") - confirmed necessary on
+# real hardware (2026-10-09), and confirmed the mechanism by reading
+# wic itself, not guessed:
+#   - wic's own update_fstab() (scripts/lib/wic/plugins/imager/
+#     direct.py) runs ONCE per image, unconditionally unless wic's own
+#     *global* --no-fstab-update CLI option is set (nothing in this
+#     project's build passes that) - it writes one /etc/fstab line for
+#     every partition whose mountpoint is set and isn't "/". It does
+#     NOT consult the per-"part"-line --no-fstab-update keyword at all
+#     (that one only controls whether an already-rootfs-sourced
+#     partition gets the updated fstab baked into its OWN filesystem
+#     via debugfs in prepare_rootfs() - a different step entirely, and
+#     one boot_a/boot_b/data never go through anyway since none of them
+#     use --source rootfs). A first attempt at this fix added that
+#     per-partition flag to all three and changed nothing on real
+#     hardware - confirming it doesn't gate this.
+#   - With mountpoint "/boot" on both boot_a and boot_b, update_fstab()
+#     wrote TWO conflicting /boot lines, which systemd-fstab-generator
+#     then failed to turn into two different "boot.mount" units
+#     ("Duplicate entry in /etc/fstab?") - the surviving one hung for
+#     the full 90s mount timeout and dropped to emergency mode.
+#   - bootimg-partition.py's own plugin code never references
+#     part.mountpoint at all (confirmed by reading it) - the "/boot"
+#     string wasn't doing anything useful for either partition in the
+#     first place, just triggering this bug.
+#   - Neither boot_a nor boot_b should ever be Linux-mounted at all in
+#     normal operation anyway - only U-Boot touches them directly, and
+#     RAUC writes updates to the inactive one by device path
+#     (system.conf), not via fstab.
+#   - Same reasoning for "data" (dropped "/data" as its mountpoint
+#     too): a wic-auto-generated fstab entry for it would generate its
+#     own "data.mount" unit that could shadow the hand-written one this
+#     project ships (recipes-toletus/rauc-data-sync, meta-toletus) with
+#     none of that unit's actual ordering/options - better to have
+#     exactly one source of truth for that mount, and
+#     prepare_empty_partition_ext4() (what actually builds this
+#     partition, since it has no --source) doesn't use mountpoint
+#     either, only --label.
+#   - rootfs_a/rootfs_b keep "/" - update_fstab() already skips
+#     mountpoint "/" unconditionally, so there was never a bug there.
 #
 # 0~32K: GPT
 bootloader --ptable gpt --configfile=radxa-zero3e-extlinux.conf
 part --source rawcopy --sourceparams="file=idblock.img" --align 32 --no-table
 part --source rawcopy --sourceparams="file=uboot.img" --part-name uboot --offset 8M
 part --source rawcopy --sourceparams="file=trust.img" --part-name trust --align 4
-part /boot --source bootimg-partition --sourceparams="loader=u-boot" --label boot --fstype=vfat --align 4 --fixed-size 64M --active --use-uuid
-part / --source rootfs --fstype ${RK_ROOTFS_TYPE} --part-name rootfs --uuid ${RK_ROOTDEV_UUID} --mkfs-extraopts "${RK_ROOTFS_EXTRAOPTS}" --align 8192
+part --source bootimg-partition --sourceparams="loader=u-boot" --part-name boot_a --label boot_a --fstype=vfat --align 4 --fixed-size 64M --active --use-uuid
+part --source bootimg-partition --sourceparams="loader=u-boot" --part-name boot_b --label boot_b --fstype=vfat --align 4 --fixed-size 64M --active --use-uuid
+part / --source rootfs --fstype ${RK_ROOTFS_TYPE} --part-name rootfs_a --label rootfs_a --uuid ${RK_ROOTDEV_UUID_A} --mkfs-extraopts "${RK_ROOTFS_EXTRAOPTS}" --align 8192 --fixed-size 3072M
+part / --source rootfs --fstype ${RK_ROOTFS_TYPE} --part-name rootfs_b --label rootfs_b --uuid ${RK_ROOTDEV_UUID_B} --mkfs-extraopts "${RK_ROOTFS_EXTRAOPTS}" --align 8192 --fixed-size 3072M
+part --fstype ext4 --part-name data --label data --align 8192 --fixed-size 4096M --mkfs-extraopts "-O ^metadata_csum,^64bit"

@@ -2,6 +2,18 @@
 # Released under the MIT license (see COPYING.MIT for the terms)
 
 export RK_ROOTDEV_UUID ?= "614e0000-0000-4b53-8000-1d28000054a9"
+
+# Symmetric A/B (RAUC): two distinct rootfs slot UUIDs instead of the
+# single RK_ROOTDEV_UUID above. Added alongside it, not replacing it, so
+# any other machine still on generic-gptdisk.wks.in's single-rootfs
+# layout is unaffected - only radxa-zero3e.wks.in references these.
+# These MUST match the literal values compiled into
+# u-boot-radxa-zero3e's rauc-ab.cfg (CONFIG_BOOTCOMMAND's rauc_uuid_a/b)
+# - that file reads extlinux.conf's root=${rauc_root} at runtime, which
+# is only ever set to one of these two, so a mismatch here silently
+# produces a kernel that can't find its own root partition.
+export RK_ROOTDEV_UUID_A ?= "614e0000-0000-4b53-8000-1d28000054aa"
+export RK_ROOTDEV_UUID_B ?= "614e0000-0000-4b53-8000-1d28000054ab"
 export RK_PARTITION_GROW ?= "1"
 
 IMAGE_FSTYPES:remove = "iso live"
