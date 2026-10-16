@@ -1,0 +1,180 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Toletus <dev@toletus.com>
+Date: Thu, 15 Oct 2026 00:00:00 +0000
+Subject: [PATCH] arm64: dts: rockchip: radxa-zero-3e: enable OV5647 camera
+ (MIPI CSI2 -> ISP v2.1)
+
+Wires up the board's 22-pin MIPI CSI2 connector for a Raspberry Pi
+Camera v1.3 (OV5647 sensor) - raw sensor capture only for now, no ISP
+3A/AIQ tuning (see docs/OV5647_CAMERA_PLAN.md - this project's own
+rockchip-rkaiq userspace stack has no OV5647 tuning file upstream,
+deliberately deferred).
+
+No kernel config changes needed: CONFIG_VIDEO_OV5647,
+CONFIG_VIDEO_ROCKCHIP_CIF, CONFIG_VIDEO_ROCKCHIP_ISP (and its
+VIDEO_ROCKCHIP_ISP_VERSION_V21 sub-option, defaulted on via
+CONFIG_CPU_RK3568=y) are all already =y in this fork's own
+arch/arm64/configs/rockchip_linux_defconfig - confirmed by reading it
+directly, not assumed. This is a devicetree-only change.
+
+Wiring confirmed against a real, working reference - not invented from
+scratch: Armbian's own linux-rockchip fork (same kernel lineage,
+rk-6.1-rkr5.1 branch) ships
+arch/arm64/boot/dts/rockchip/overlay/radxa-zero3-rpi-camera-v1.3.dts
+for this exact board+sensor combination (compatible = "radxa,zero3",
+the same shared family compatible string rk3566-radxa-zero3.dtsi -
+this file - already declares). Adapted from that overlay's fragments
+into static &label overrides for this project's own direct-patch
+convention (no U-Boot fdtoverlays mechanism in use here), keeping
+every property value identical:
+- i2c2 @ 0x36, 25MHz dedicated fixed-clock (sensor hard-errors on any
+  other frequency - confirmed by reading drivers/media/i2c/ov5647.c
+  directly), pwdn-gpios on GPIO3_PC6 (confirmed free: grepped this
+  board's own dtsi/dts for any existing GPIO3_PC6 use first).
+- Full-mode CSI2 (csi2_dphy0, not the split-mode dphy1/dphy2 pair the
+  dual-camera EVB example uses - this board has one camera connector)
+  routed directly into rkisp_vir0 (ISP virtual channel 0), matching
+  the reference exactly.
+
+Verified mechanically before writing this patch: applied this exact
+diff against a real checkout of this project's own pinned SRCREV
+(f87fca6cefcb6229c7f81399dd351cf658940bfa) and confirmed every
+referenced label (i2c2, gpio3, i2c2m1_xfer, csi2_dphy_hw, csi2_dphy0,
+rkisp_vir0, rkisp, rkisp_mmu, rkcif_mmu, rkcif) already exists in this
+board's real include chain (rk3566-radxa-zero3.dtsi -> rk3566.dtsi ->
+rk356x.dtsi [-> rk3568-pinctrl.dtsi] - all confirmed by reading them
+directly), with balanced braces and a clean dry-run patch apply.
+
+Test (raw capture, no ISP/AIQ running):
+  media-ctl -p
+  v4l2-ctl --list-devices
+  v4l2-ctl -d /dev/videoX --set-fmt-video=width=2592,height=1944,pixelformat=BA10 \
+    --stream-mmap --stream-count=5 --stream-to=/tmp/ov5647-test.raw
+---
+ arch/arm64/boot/dts/rockchip/rk3566-radxa-zero3.dtsi | 118 ++++++++++++++++++
+ 1 file changed, 118 insertions(+)
+
+--- a/arch/arm64/boot/dts/rockchip/rk3566-radxa-zero3.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3566-radxa-zero3.dtsi
+@@ -821,3 +821,119 @@
+ 		/* GPIO4_D4-D7 */
+ 		"", "", "", "";
+ };
++
++/ {
++	/* 25MHz is a hard requirement, not approximate - ov5647_probe()
++	 * in drivers/media/i2c/ov5647.c calls clk_get_rate() and returns
++	 * -EINVAL for anything else. Dedicated fixed-clock, not shared
++	 * with any other peripheral on this board.
++	 */
++	clk_cam_25m: external-camera-clock-25m {
++		status = "okay";
++		compatible = "fixed-clock";
++		clock-frequency = <25000000>;
++		clock-output-names = "clk_cam_25m";
++		#clock-cells = <0>;
++	};
++};
++
++&i2c2 {
++	status = "okay";
++	pinctrl-names = "default";
++	pinctrl-0 = <&i2c2m1_xfer>;
++	#address-cells = <1>;
++	#size-cells = <0>;
++
++	camera_ov5647: camera-ov5647@36 {
++		status = "okay";
++		compatible = "ovti,ov5647";
++		reg = <0x36>;
++		clocks = <&clk_cam_25m>;
++		clock-names = "xvclk";
++		/* Confirmed free on this board - grepped rk3566-radxa-
++		 * zero3.dtsi/rk3566-radxa-zero-3e.dts for any existing
++		 * "gpio3 RK_PC6" use before adding this. */
++		pwdn-gpios = <&gpio3 RK_PC6 GPIO_ACTIVE_LOW>;
++		rockchip,camera-module-index = <0>;
++		rockchip,camera-module-facing = "back";
++		rockchip,camera-module-name = "rpi-camera-v1p3";
++		rockchip,camera-module-lens-name = "default";
++
++		port {
++			ucam_out0: endpoint {
++				remote-endpoint = <&mipi_in_ucam0>;
++				data-lanes = <1 2>;
++			};
++		};
++	};
++};
++
++&csi2_dphy_hw {
++	status = "okay";
++};
++
++/* Full mode (not split dphy1/dphy2) - this board has one physical
++ * camera connector, not the dual-camera split-mode setup the EVB
++ * reference design uses.
++ */
++&csi2_dphy0 {
++	status = "okay";
++
++	ports {
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		port@0 {
++			reg = <0>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			mipi_in_ucam0: endpoint@1 {
++				reg = <1>;
++				remote-endpoint = <&ucam_out0>;
++				data-lanes = <1 2>;
++			};
++		};
++
++		port@1 {
++			reg = <1>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			dphy0_out: endpoint@1 {
++				reg = <1>;
++				remote-endpoint = <&isp0_in>;
++			};
++		};
++	};
++};
++
++&rkisp_vir0 {
++	status = "okay";
++
++	port {
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		isp0_in: endpoint@0 {
++			reg = <0>;
++			remote-endpoint = <&dphy0_out>;
++		};
++	};
++};
++
++&rkisp {
++	status = "okay";
++};
++
++&rkisp_mmu {
++	status = "okay";
++};
++
++&rkcif_mmu {
++	status = "okay";
++};
++
++&rkcif {
++	status = "okay";
++};
+--
+2.43.0
