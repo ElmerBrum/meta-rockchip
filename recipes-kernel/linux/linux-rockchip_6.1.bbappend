@@ -49,16 +49,9 @@
 # pair with its default source.
 FILESEXTRAPATHS:prepend := "${THISDIR}/linux-rockchip_6.1:"
 
-# 0001: enables the OV5647 camera (MIPI CSI2 -> ISP v2.1) on the board's
-# 22-pin camera connector - devicetree-only, no new kernel config (every
-# CONFIG_VIDEO_OV5647/ROCKCHIP_CIF/ROCKCHIP_ISP symbol it needs is already
-# =y in this fork's own rockchip_linux_defconfig - see that patch's own
-# commit message). See docs/OV5647_CAMERA_PLAN.md for the full picture
-# (why ISP 3A/AIQ tuning is deliberately out of scope for this patch).
 SRC_URI:radxa-zero-3e = " \
 	git://github.com/radxa/kernel.git;protocol=https;nobranch=1;branch=linux-6.1-stan-rkr5.1; \
 	file://cgroups.cfg \
 	file://mali-jm.cfg \
-	file://0001-arm64-dts-rockchip-radxa-zero-3e-enable-OV5647-came.patch \
 "
 SRCREV:radxa-zero-3e = "f87fca6cefcb6229c7f81399dd351cf658940bfa"
