@@ -65,7 +65,6 @@ SRCREV_rkbin = "c41b714cacd249e3ef69b2bbe774da5095eefd72"
 SRC_URI = " \
 	git://github.com/Kwiboo/u-boot-rockchip.git;protocol=https;branch=rk3xxx-2024.07 \
 	git://github.com/JeffyCN/mirrors.git;protocol=https;branch=rkbin;name=rkbin;destsuffix=rkbin \
-	file://rauc-ab.cfg \
 "
 # rauc-ab.cfg: hand-rolled RAUC symmetric A/B support (persistent env in
 # the new "data" ext4 partition + a CONFIG_BOOTCOMMAND override reading
@@ -76,6 +75,14 @@ SRC_URI = " \
 # real hardware. Merged on top of the defconfig via u-boot-configure.inc's
 # do_configure (find_cfgs()/merge_config.sh against any *.cfg in SRC_URI
 # - confirmed by reading that file, not assumed).
+#
+# Opt-in only (RADXA_ZERO3E_RAUC_AB = "1", conf/machine/
+# radxa-zero-3e.conf's own default is "0") - this plain U-Boot without
+# it boots a normal single-rootfs image fine on its own, matching the
+# default (non-RAUC) wic/radxa-zero3e.wks.in layout. A downstream layer
+# that wants RAUC A/B sets the machine variable; nothing here needs
+# touching directly.
+SRC_URI:append = "${@bb.utils.contains('RADXA_ZERO3E_RAUC_AB', '1', ' file://rauc-ab.cfg', '', d)}"
 SRCREV_FORMAT = "default_rkbin"
 
 UBOOT_MACHINE = "radxa-zero-3-rk3566_defconfig"
