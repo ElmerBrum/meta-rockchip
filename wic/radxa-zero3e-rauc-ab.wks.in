@@ -23,9 +23,11 @@
 # - Symmetric A/B (RAUC): "boot"/"rootfs" became boot_a/boot_b (vfat,
 #   kernel+dtb+shared extlinux.conf) and rootfs_a/rootfs_b (ext4), plus
 #   a new persistent "data" partition outside the A/B scheme entirely.
-#   See meta-toletus/recipes-core (rauc-data-sync, rauc-mark-good) and
-#   meta-rockchip's own u-boot-radxa-zero3e_2024.07.bb (rauc-ab.cfg) for
-#   the rest of this scheme - this file only owns the partition table.
+#   The downstream layer that enables this owns the rest of the scheme
+#   (RAUC's own system.conf slot definitions, a data-sync service, a
+#   mark-good service once its own app stack is confirmed healthy) -
+#   this file only owns the partition table. See this layer's own
+#   u-boot-radxa-zero3e_2024.07.bb (rauc-ab.cfg) for the U-Boot side.
 #
 #   Both boot_a/boot_b use the SAME --configfile=
 #   (radxa-zero3e-rauc-ab-extlinux.conf) - confirmed by
@@ -40,13 +42,14 @@
 #
 #   Sizes: rootfs_a/rootfs_b are fixed (not auto-sized like the old
 #   single rootfs partition was) - both slots must be identical capacity.
-#   3072M each, sized around the current ~350M build plus the ~2500M
-#   growth headroom expected for this board's sysroot, confirmed against
-#   its real 16GB SD card (see meta-toletus's planning notes - total
+#   3072M each, sized around a ~350M build plus ~2500M growth headroom
+#   for a typical sysroot, confirmed against a real 16GB SD card (total
 #   partitioned space here is ~10.1GB, leaving >4.5GB unallocated
-#   deliberately). "data" is 4096M: current models/media is ~100M, but
-#   it also needs room to stage a full downloaded RAUC bundle
-#   (boot+rootfs image, worst case ~3GB) before install.
+#   deliberately - a downstream layer with a larger rootfs or different
+#   card size should resize these). "data" is 4096M: sized to leave
+#   headroom for both ordinary persistent app data and staging a full
+#   downloaded RAUC bundle (boot+rootfs image, worst case ~3GB) before
+#   install.
 #
 #   "data" also needs --mkfs-extraopts disabling metadata_csum/64bit:
 #   confirmed on real hardware (2026-10-09) that this U-Boot's EXT4
@@ -145,10 +148,10 @@
 #     (system.conf), not via fstab.
 #   - Same reasoning for "data" (dropped "/data" as its mountpoint
 #     too): a wic-auto-generated fstab entry for it would generate its
-#     own "data.mount" unit that could shadow the hand-written one this
-#     project ships (recipes-toletus/rauc-data-sync, meta-toletus) with
-#     none of that unit's actual ordering/options - better to have
-#     exactly one source of truth for that mount, and
+#     own "data.mount" unit that could shadow a hand-written one a
+#     downstream layer ships with none of that unit's actual
+#     ordering/options - better to have exactly one source of truth for
+#     that mount, left to whichever layer actually owns it, and
 #     prepare_empty_partition_ext4() (what actually builds this
 #     partition, since it has no --source) doesn't use mountpoint
 #     either, only --label.
